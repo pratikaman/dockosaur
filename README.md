@@ -22,6 +22,26 @@ A tiny pixel dino that runs on top of your macOS Dock. Play it while you work: j
 
 Clicks pass through to your windows unless the pointer is over the strip, and clicking it never takes focus from the app you're typing in. Right-click the strip for settings: dino colour, size, width, sound, autopilot, launch at login.
 
+## Tour
+
+**360 over crates.** Clear a crate and the dino throws in a somersault.
+
+![The dino somersaults over a crate](docs/flip.gif)
+
+**Strawberry: go giant.** The dino grows huge for 6 seconds and stomps through spikes, saws, pterodactyls and crates (+10 each).
+
+![The giant dino smashing spikes, a saw and a pterodactyl](docs/giant.gif)
+
+**Juice box: turbo.** Roller skates on, straw in, and the dino zooms along at super speed, dodging everything by itself while it sips.
+
+![The dino skating at turbo speed while drinking a juice box](docs/turbo.gif)
+
+**Pits and fire pits.** Watch for the sign, then jump at the little red pebble. The ground only caves in at the last moment, and fire pits come with flames.
+
+![A PIT AHEAD sign, the red pebble, a jump over the pit, then a fire pit](docs/pits.gif)
+
+The demos are recorded from the game itself: `Dockosaur --record docs/demo.gif` (see `--from`, `--to`, `--fps`).
+
 ## Install with a prompt
 
 Paste this into Claude Code:

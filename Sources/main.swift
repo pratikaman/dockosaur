@@ -1569,6 +1569,74 @@ func snapshot(_ args: [String]) {
     print("wrote \(out)  phase=\(g.phase) score=\(Int(g.score)) things=\(g.things.count)")
 }
 
+/// Records the README demo: a scripted reel through every feature, played by the autopilot and rendered with
+/// the same layer tree as the live app.  Dockosaur --record docs/demo.gif [--from 0 --to 28.5 --fps 15]
+func record(_ args: [String]) {
+    func arg(_ k: String) -> String? { args.firstIndex(of: k).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } }
+    let out = arg("--record")!
+    let from = Double(arg("--from") ?? "0") ?? 0, to = Double(arg("--to") ?? "28.5") ?? 28.5
+    let fps = Double(arg("--fps") ?? "15") ?? 15
+    let scale: CGFloat = 2, widthPt: CGFloat = 640
+    let art = Art(character: "vita")
+    let g = Game(art: art, seed: 11)
+    g.worldW = Double(widthPt / scale)
+    g.best = 1240
+    g.autopilot = true
+    g.step(1.0 / 120)                    // autopilot starts the run
+    g.score = 420; g.speed = 175
+
+    // (time, what) — each thing enters at the right edge and reaches the dino about 1.6 s later.
+    func enter(_ k: Kind, y: Double = 0) { var t = Thing(kind: k, x: g.worldW + 4); t.y = y; g.things.append(t) }
+    func pit(fire: Bool) {
+        let jump = g.speed * 2 * K.jumpV / K.gravity, lead = max(130, g.runSpeed * 0.9)
+        enter(.sign(fire: fire))
+        g.things.append(Thing(kind: .pit(Int(jump * 0.72), fire: fire), x: g.worldW + 4 + lead))
+    }
+    var script: [(Double, () -> Void)] = [
+        (0.3, { enter(.box(0)) }),                               // 360 somersault over a crate
+        (2.1, { enter(.bird(0, high: false)) }),                 // jump a low pterodactyl
+        (3.6, { enter(.bird(1, high: true)) }),                  // duck under a high one
+        (4.8, { enter(.fruit(Fruit.cherry), y: 8) }),            // +50
+        (5.8, { enter(.fruit(Fruit.strawberry), y: 8) }),        // BIG
+        (7.0, { enter(.spikes(2)) }), (7.9, { enter(.saw) }), (8.8, { enter(.bird(0, high: true)) }), (9.7, { enter(.box(1)) }),
+        (12.6, { enter(.fruit(Fruit.juice), y: 8) }),            // TURBO: skates + juice box
+        (14.6, { enter(.spikes(1)) }), (15.3, { enter(.box(0)) }), (16.0, { enter(.bird(1, high: false)) }),
+        (19.4, { pit(fire: false) }),                            // PIT AHEAD + red pebble
+        (23.0, { pit(fire: true) }),                             // FIRE PIT AHEAD
+    ]
+    let scene = Scene(art: art)
+    let b: CGFloat = 1
+    let size = CGSize(width: widthPt, height: CGFloat(K.below + K.above) * scale + 40)
+    scene.layout(size: CGSize(width: widthPt, height: CGFloat(K.below + K.above) * scale), px: scale, backing: b)
+    var images: [CGImage] = []
+    var t = 0.0, deaths = 0
+    g.onDeath = { deaths += 1 }
+    while t < to {
+        while let next = script.first, next.0 <= t { next.1(); script.removeFirst() }
+        g.gapLeft = 1e9                  // only scripted things this time
+        for _ in 0..<Int((120 / fps).rounded()) { g.step(1.0 / 120); t += 1.0 / 120 }   // whole sim steps per frame
+        guard t >= from else { continue }
+        let ctx = CGContext(data: nil, width: Int(size.width * b), height: Int(size.height * b), bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.scaleBy(x: b, y: b)
+        ctx.setFillColor(CGColor(red: 0.12, green: 0.13, blue: 0.16, alpha: 1)); ctx.fill(CGRect(origin: .zero, size: size))
+        ctx.setFillColor(CGColor(gray: 1, alpha: 0.16))       // the Dock under the strip
+        ctx.addPath(CGPath(roundedRect: CGRect(x: 20, y: 4, width: size.width - 40, height: 32), cornerWidth: 12, cornerHeight: 12, transform: nil))
+        ctx.fillPath()
+        ctx.translateBy(x: 0, y: 40 - CGFloat(K.below) * scale)
+        scene.update(g, hover: false, hint: "")
+        ctx.interpolationQuality = .none
+        scene.root.render(in: ctx)
+        images.append(ctx.makeImage()!)
+    }
+    let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: out) as CFURL, "com.compuserve.gif" as CFString, images.count, nil)!
+    CGImageDestinationSetProperties(dest, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+    let frameProps = [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: 1 / fps]] as CFDictionary
+    for img in images { CGImageDestinationAddImage(dest, img, frameProps) }
+    let ok = CGImageDestinationFinalize(dest)
+    print("\(ok ? "wrote" : "FAILED to write") \(out): \(images.count) frames, deaths \(deaths), score \(Int(g.score))")
+}
+
 func selftest() -> Int32 {
     var fails = 0
     func check(_ ok: Bool, _ what: String) { if !ok { fails += 1; print("FAIL: \(what)") } }
@@ -1687,6 +1755,7 @@ func selftest() -> Int32 {
 let args = CommandLine.arguments
 if args.contains("--selftest") { exit(selftest()) }
 if args.contains("--snapshot") { snapshot(args); exit(0) }
+if args.contains("--record") { record(args); exit(0) }
 
 let app = NSApplication.shared
 controller = Controller()
